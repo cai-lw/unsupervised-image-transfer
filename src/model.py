@@ -9,7 +9,7 @@ from six.moves import xrange
 from ops import *
 from utils import *
 
-class DCGAN(object):
+class CrossDomainGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
                  batch_size=64, sample_size = 64, output_size=64,
                  y_dim=None, z_dim=100, gf_dim=64, df_dim=64,
@@ -90,15 +90,23 @@ class DCGAN(object):
                 np.array([np.array([0.0, 1.0, 0.0]) for i in range(self.batch_size)])))
         self.D_loss_3 = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.D_logits_3,
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)])))
+
         self.D_loss = self.D_loss_1 + self.D_loss_2 + self.D_loss_3
 
         self.GANG_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.D_logits_1,
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)]))) \
                 + tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.D_logits_2,
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)])))
-        self.CONST_loss =
-        self.TID_loss =
-        self.G_loss = self.GANG_loss + self.alpha * self.CONST_loss + self.beta * self.TID_loss
+        self.CONST_loss = tf.reduce_mean(tf.squared_difference(self.src_images_F, self.src_images_FGF))
+        self.TID_loss = tf.reduce_mean(tf.squared_difference(self.tgt_images, self.tgt_images_FG))
+        # total variation denoising
+        shape = tf.shape(self.image)
+        self.TV_loss = tf.reduce_mean(tf.squared_difference(self.tgt_images_FG[:,1:,:,:], self.tgt_images_FG[:,:shape[1]-1,:,:])) +
+                tf.reduce_mean(tf.squared_difference((self.tgt_images_FG[:,:,1:,:], self.tgt_images_FG[:,:,:shape[2]-1,:]))) +
+                tf.reduce_mean(tf.squared_difference(self.src_images_FG[:,1:,:,:], self.src_images_FG[:,:shape[1]-1,:,:])) +
+                        tf.reduce_mean(tf.squared_difference((self.src_images_FG[:,:,1:,:], self.src_images_FG[:,:,:shape[2]-1,:])))
+        self.G_loss = self.GANG_loss + self.CONST_weight * self.CONST_loss + self.TID_weight * self.TID_loss +
+                self.TV_weight * self.TV_loss
 
         t_vars = tf.trainable_variables()
 

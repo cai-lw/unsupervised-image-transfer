@@ -22,7 +22,6 @@ class CrossDomainGAN(object):
             batch_size: The size of batch. Should be specified before training.
             output_size: (optional) The resolution in pixels of the images. [64]
             y_dim: (optional) Dimension of dim for y. [None]
-            z_dim: (optional) Dimension of dim for Z. [100]
             gf_dim: (optional) Dimension of gen filters in first conv layer. [64]
             df_dim: (optional) Dimension of discrim filters in first conv layer. [64]
             gfc_dim: (optional) Dimension of gen units for for fully connected layer. [1024]
@@ -38,7 +37,6 @@ class CrossDomainGAN(object):
         self.output_size = output_size
 
         self.y_dim = y_dim
-        self.z_dim = z_dim
 
         self.gf_dim = gf_dim
         self.df_dim = df_dim
@@ -49,29 +47,28 @@ class CrossDomainGAN(object):
         self.c_dim = c_dim
 
         # batch normalization : deals with poor initialization helps gradient flow
-        self.d_bn1 = batch_norm(name='d_bn1')
-        self.d_bn2 = batch_norm(name='d_bn2')
-        self.d_bn3 = batch_norm(name='d_bn3')
+        self.D_bn1 = batch_norm(name = 'D_bn1')
+        self.D_bn2 = batch_norm(name = 'D_bn2')
+        self.D_bn3 = batch_norm(name = 'D_bn3')
 
-        self.g_bn0 = batch_norm(name='g_bn0')
-        self.g_bn1 = batch_norm(name='g_bn1')
-        self.g_bn2 = batch_norm(name='g_bn2')
-        self.g_bn3 = batch_norm(name='g_bn3')
+        self.G_bn0 = batch_norm(name = 'G_bn0')
+        self.G_bn1 = batch_norm(name = 'G_bn1')
+        self.G_bn2 = batch_norm(name = 'G_bn2')
+        self.G_bn3 = batch_norm(name = 'G_bn3')
 
-        self.f_bn1 = batch_norm(name='f_bn1')
-        self.f_bn2 = batch_norm(name='f_bn2')
-        self.f_bn3 = batch_norm(name='f_bn3')
+        self.F_bn1 = batch_norm(name='F_bn1')
+        self.F_bn2 = batch_norm(name='F_bn2')
+        self.F_bn3 = batch_norm(name='F_bn3')
 
-        self.dataset_name = dataset_name
         self.checkpoint_dir = checkpoint_dir
         self.build_model()
 
     def build_model(self):
 
         self.src_images = tf.placeholder(tf.float32, [self.batch_size] + [self.src_size, self.src_size, self.src_c_dim],
-                                    name='src_images')
+                                    name = 'src_images')
         self.tgt_images = tf.placeholder(tf.float32, [self.batch_size] + [self.tgt_size, self.tgt_size, self.tgt_c_dim],
-                                    name='tgt_images')
+                                    name = 'tgt_images')
 
         self.src_images_F = self.f_function(self.src_images)
         self.src_images_FG = self.generator(self.src_images_F)
@@ -97,55 +94,39 @@ class CrossDomainGAN(object):
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)]))) \
                 + tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.D_logits_2,
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)])))
-        self.CONST_loss = tf.reduce_mean(tf.squared_difference(self.src_images_F, self.src_images_FGF))
-        self.TID_loss = tf.reduce_mean(tf.squared_difference(self.tgt_images, self.tgt_images_FG))
+        self.CONST_loss =  self.CONST_weight * tf.reduce_mean(tf.squared_difference(self.src_images_F, self.src_images_FGF))
+        self.TID_loss = self.TID_weight * tf.reduce_mean(tf.squared_difference(self.tgt_images, self.tgt_images_FG))
         # total variation denoising
         shape = tf.shape(self.image)
-        self.TV_loss = tf.reduce_mean(tf.squared_difference(self.tgt_images_FG[:,1:,:,:], self.tgt_images_FG[:,:shape[1]-1,:,:])) +
+        self.TV_loss = self.TV_weight * (tf.reduce_mean(tf.squared_difference(self.tgt_images_FG[:,1:,:,:], self.tgt_images_FG[:,:shape[1]-1,:,:])) +
                 tf.reduce_mean(tf.squared_difference((self.tgt_images_FG[:,:,1:,:], self.tgt_images_FG[:,:,:shape[2]-1,:]))) +
                 tf.reduce_mean(tf.squared_difference(self.src_images_FG[:,1:,:,:], self.src_images_FG[:,:shape[1]-1,:,:])) +
-                        tf.reduce_mean(tf.squared_difference((self.src_images_FG[:,:,1:,:], self.src_images_FG[:,:,:shape[2]-1,:])))
-        self.G_loss = self.GANG_loss + self.CONST_weight * self.CONST_loss + self.TID_weight * self.TID_loss +
-                self.TV_weight * self.TV_loss
+                        tf.reduce_mean(tf.squared_difference((self.src_images_FG[:,:,1:,:], self.src_images_FG[:,:,:shape[2]-1,:]))))
+        self.G_loss = self.GANG_loss + self.CONST_loss + self.TID_loss + self.TV_loss
 
         t_vars = tf.trainable_variables()
 
-        self.d_vars = [var for var in t_vars if 'd_' in var.name]
-        self.g_vars = [var for var in t_vars if 'g_' in var.name]
+        self.D_vars = [var for var in t_vars if 'd_' in var.name]
+        self.G_vars = [var for var in t_vars if 'g_' in var.name]
 
         self.saver = tf.train.Saver()
 
     def train(self, config):
-        """Train DCGAN"""
-        if config.dataset == 'mnist':
-            data_X, data_y = self.load_mnist()
-        else:
-            data = glob(os.path.join("./data", config.dataset, "*.jpg"))
-        #np.random.shuffle(data)
+        """Train CrossDomainGAN"""
 
-        d_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-                          .minimize(self.d_loss, var_list=self.d_vars)
-        g_optim = tf.train.AdamOptimizer(config.learning_rate, beta1=config.beta1) \
-                          .minimize(self.g_loss, var_list=self.g_vars)
+        src_data_X, src_data_y = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
+        tgt_data_X, tgt_data_y = load_mnist(config.tgt_dir)
+
+        D_optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
+                          .minimize(self.D_loss, var_list = self.d_vars)
+        G_optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
+                          .minimize(self.G_loss, var_list = self.g_vars)
         tf.initialize_all_variables().run()
 
         self.g_sum = tf.merge_summary([self.z_sum, self.d__sum,
             self.G_sum, self.d_loss_fake_sum, self.g_loss_sum])
         self.d_sum = tf.merge_summary([self.z_sum, self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
-
-        sample_z = np.random.uniform(-1, 1, size=(self.sample_size , self.z_dim))
-
-        if config.dataset == 'mnist':
-            sample_images = data_X[0:self.sample_size]
-            sample_labels = data_y[0:self.sample_size]
-        else:
-            sample_files = data[0:self.sample_size]
-            sample = [get_image(sample_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale) for sample_file in sample_files]
-            if (self.is_grayscale):
-                sample_images = np.array(sample).astype(np.float32)[:, :, :, None]
-            else:
-                sample_images = np.array(sample).astype(np.float32)
 
         counter = 1
         start_time = time.time()
@@ -156,65 +137,38 @@ class CrossDomainGAN(object):
             print(" [!] Load failed...")
 
         for epoch in xrange(config.epoch):
-            if config.dataset == 'mnist':
-                batch_idxs = min(len(data_X), config.train_size) // config.batch_size
-            else:
-                data = glob(os.path.join("./data", config.dataset, "*.jpg"))
-                batch_idxs = min(len(data), config.train_size) // config.batch_size
+
+            batch_idxs = min(len(self.src_images), len(self.tgt_images)) // config.batch_size
 
             for idx in xrange(0, batch_idxs):
-                if config.dataset == 'mnist':
-                    batch_images = data_X[idx*config.batch_size:(idx+1)*config.batch_size]
-                    batch_labels = data_y[idx*config.batch_size:(idx+1)*config.batch_size]
-                else:
-                    batch_files = data[idx*config.batch_size:(idx+1)*config.batch_size]
-                    batch = [get_image(batch_file, self.image_size, is_crop=self.is_crop, resize_w=self.output_size, is_grayscale = self.is_grayscale) for batch_file in batch_files]
-                    if (self.is_grayscale):
-                        batch_images = np.array(batch).astype(np.float32)[:, :, :, None]
-                    else:
-                        batch_images = np.array(batch).astype(np.float32)
 
-                batch_z = np.random.uniform(-1, 1, [config.batch_size, self.z_dim]) \
-                            .astype(np.float32)
+                batch_src_images = src_data_X[idx * config.batch_size : (idx + 1) * config.batch_size]
+                batch_tgt_images = tgt_data_X[idx * config.batch_size : (idx + 1) * config.batch_size]
+                batch_src_images = np.array(batch_src_images) / 127.5 - 1
+                batch_tgt_images = np.array(batch_tgt_images) / 127.5 - 1
+                batch_src_images.astype(np.float32)
+                batch_tgt_images.astype(np.float32)
 
-                if config.dataset == 'mnist':
-                    # Update D network
-                    _, summary_str = self.sess.run([d_optim, self.d_sum],
-                        feed_dict={ self.images: batch_images, self.z: batch_z, self.y:batch_labels })
-                    self.writer.add_summary(summary_str, counter)
+                # Update G network
+                _, summary_str = self.sess.run([G_optim, self.G_sum], feed_dict = {self.src_images : batch_src_images, \
+                        self.tgt_images : batch_tgt_images})
+                self.writer.add_summary(summary_str, counter)
 
-                    # Update G network
-                    _, summary_str = self.sess.run([g_optim, self.g_sum],
-                        feed_dict={ self.z: batch_z, self.y:batch_labels })
-                    self.writer.add_summary(summary_str, counter)
+                # Update D network
+                _, summary_str = self.sess.run([D_optim, self.D_sum], feed_dict = {self.src_images : batch_src_images, \
+                        self.tgt_images : batch_tgt_images})
+                self.writer.add_summary(summary_str, counter)
 
-                    # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                    _, summary_str = self.sess.run([g_optim, self.g_sum],
-                        feed_dict={ self.z: batch_z, self.y:batch_labels })
-                    self.writer.add_summary(summary_str, counter)
+                # Update G network
+                _, summary_str = self.sess.run([G_optim, self.G_sum], feed_dict = {self.src_images : batch_src_images, \
+                        self.tgt_images : batch_tgt_images})
+                self.writer.add_summary(summary_str, counter)
 
-                    errD_fake = self.d_loss_fake.eval({self.z: batch_z, self.y:batch_labels})
-                    errD_real = self.d_loss_real.eval({self.images: batch_images, self.y:batch_labels})
-                    errG = self.g_loss.eval({self.z: batch_z, self.y:batch_labels})
-                else:
-                    # Update D network
-                    _, summary_str = self.sess.run([d_optim, self.d_sum],
-                        feed_dict={ self.images: batch_images, self.z: batch_z })
-                    self.writer.add_summary(summary_str, counter)
-
-                    # Update G network
-                    _, summary_str = self.sess.run([g_optim, self.g_sum],
-                        feed_dict={ self.z: batch_z })
-                    self.writer.add_summary(summary_str, counter)
-
-                    # Run g_optim twice to make sure that d_loss does not go to zero (different from paper)
-                    _, summary_str = self.sess.run([g_optim, self.g_sum],
-                        feed_dict={ self.z: batch_z })
-                    self.writer.add_summary(summary_str, counter)
-
-                    errD_fake = self.d_loss_fake.eval({self.z: batch_z})
-                    errD_real = self.d_loss_real.eval({self.images: batch_images})
-                    errG = self.g_loss.eval({self.z: batch_z})
+                D_error = self.D_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
+                G_error = self.G_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
+                GAND_error = self.GANG_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
+                CONST_error = self.CONST_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
+                TID_error = self.TID_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
@@ -374,42 +328,6 @@ class CrossDomainGAN(object):
 
             return tf.nn.sigmoid(deconv2d(h2, [self.batch_size, s, s, self.c_dim], name='g_h3'))
 
-    def load_mnist(self):
-        data_dir = os.path.join("./data", self.dataset_name)
-
-        fd = open(os.path.join(data_dir,'train-images-idx3-ubyte'))
-        loaded = np.fromfile(file=fd,dtype=np.uint8)
-        trX = loaded[16:].reshape((60000,28,28,1)).astype(np.float)
-
-        fd = open(os.path.join(data_dir,'train-labels-idx1-ubyte'))
-        loaded = np.fromfile(file=fd,dtype=np.uint8)
-        trY = loaded[8:].reshape((60000)).astype(np.float)
-
-        fd = open(os.path.join(data_dir,'t10k-images-idx3-ubyte'))
-        loaded = np.fromfile(file=fd,dtype=np.uint8)
-        teX = loaded[16:].reshape((10000,28,28,1)).astype(np.float)
-
-        fd = open(os.path.join(data_dir,'t10k-labels-idx1-ubyte'))
-        loaded = np.fromfile(file=fd,dtype=np.uint8)
-        teY = loaded[8:].reshape((10000)).astype(np.float)
-
-        trY = np.asarray(trY)
-        teY = np.asarray(teY)
-
-        X = np.concatenate((trX, teX), axis=0)
-        y = np.concatenate((trY, teY), axis=0)
-
-        seed = 547
-        np.random.seed(seed)
-        np.random.shuffle(X)
-        np.random.seed(seed)
-        np.random.shuffle(y)
-
-        y_vec = np.zeros((len(y), self.y_dim), dtype=np.float)
-        for i, label in enumerate(y):
-            y_vec[i,y[i]] = 1.0
-
-        return X/255.,y_vec
 
     def save(self, checkpoint_dir, step):
         model_name = "DCGAN.model"

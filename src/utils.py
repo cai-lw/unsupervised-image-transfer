@@ -14,6 +14,53 @@ pp = pprint.PrettyPrinter()
 
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
+def load_mnist(path):
+
+    fd = open(os.path.join(path,'train-images-idx3-ubyte'))
+    loaded = np.fromfile(file=fd,dtype=np.uint8)
+    trX = loaded[16:].reshape((60000,28,28,1)).astype(np.float)
+
+    fd = open(os.path.join(path,'train-labels-idx1-ubyte'))
+    loaded = np.fromfile(file=fd,dtype=np.uint8)
+    trY = loaded[8:].reshape((60000)).astype(np.float)
+
+    fd = open(os.path.join(path,'t10k-images-idx3-ubyte'))
+    loaded = np.fromfile(file=fd,dtype=np.uint8)
+    teX = loaded[16:].reshape((10000,28,28,1)).astype(np.float)
+
+    fd = open(os.path.join(path,'t10k-labels-idx1-ubyte'))
+    loaded = np.fromfile(file=fd,dtype=np.uint8)
+    teY = loaded[8:].reshape((10000)).astype(np.float)
+
+    trY = np.asarray(trY)
+    teY = np.asarray(teY)
+
+    X = np.concatenate((trX, teX), axis=0)
+    y = np.concatenate((trY, teY), axis=0)
+
+    seed = 547
+    np.random.seed(seed)
+    np.random.shuffle(X)
+    np.random.seed(seed)
+    np.random.shuffle(y)
+
+    y_vec = np.zeros((len(y), self.y_dim), dtype=np.float)
+    for i, label in enumerate(y):
+        y_vec[i,y[i]] = 1.0
+
+    return X, y_vec
+
+def load_image_from_mat(path):
+    mat = scipy.io.loadmat(path)
+    mat = mat['X']
+    y_vec = mat['Y']
+    X = []
+    for i in range(mat.shape[-1]):
+        image = mat[:,:,:,i]
+        X.append(image)
+    #scipy.misc.toimage(mat[:,:,:,0]).show()
+    return np.array(X), y_vec
+
 def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False):
     return transform(imread(image_path, is_grayscale), image_size, is_crop, resize_w)
 
@@ -96,8 +143,8 @@ def to_json(output_path, *layers):
 
                 lines += """
                     var layer_%s = {
-                        "layer_type": "fc", 
-                        "sy": 1, "sx": 1, 
+                        "layer_type": "fc",
+                        "sy": 1, "sx": 1,
                         "out_sx": 1, "out_sy": 1,
                         "stride": 1, "pad": 0,
                         "out_depth": %s, "in_depth": %s,
@@ -113,7 +160,7 @@ def to_json(output_path, *layers):
 
                 lines += """
                     var layer_%s = {
-                        "layer_type": "deconv", 
+                        "layer_type": "deconv",
                         "sy": 5, "sx": 5,
                         "out_sx": %s, "out_sy": %s,
                         "stride": 2, "pad": 1,

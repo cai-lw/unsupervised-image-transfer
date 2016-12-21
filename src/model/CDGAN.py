@@ -6,8 +6,8 @@ import tensorflow as tf
 import numpy as np
 from six.moves import xrange
 
-from ops import *
-from utils import *
+from tools.ops import *
+from tools.utils import *
 
 class CrossDomainGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
@@ -330,7 +330,7 @@ class CrossDomainGAN(object):
 
 
     def save(self, checkpoint_dir, step):
-        model_name = "DCGAN.model"
+        model_name = "CrossDomainGAN.model"
         model_dir = "%s_%s_%s" % (self.dataset_name, self.batch_size, self.output_size)
         checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
 

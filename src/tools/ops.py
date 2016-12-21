@@ -20,18 +20,18 @@ class batch_norm(object):
                                             scale=True,
                                             scope=self.name)
 
+"""Computes binary cross entropy given `preds`.
 
+For brevity, let `x = `, `z = targets`.  The logistic loss is
+
+    loss(x, z) = - sum_i (x[i] * log(z[i]) + (1 - x[i]) * log(1 - z[i]))
+
+Args:
+    preds: A `Tensor` of type `float32` or `float64`.
+    targets: A `Tensor` of the same type and shape as `preds`.
+"""
 def binary_cross_entropy(preds, targets, name=None):
-    """Computes binary cross entropy given `preds`.
 
-    For brevity, let `x = `, `z = targets`.  The logistic loss is
-
-        loss(x, z) = - sum_i (x[i] * log(z[i]) + (1 - x[i]) * log(1 - z[i]))
-
-    Args:
-        preds: A `Tensor` of type `float32` or `float64`.
-        targets: A `Tensor` of the same type and shape as `preds`.
-    """
     eps = 1e-12
     with ops.op_scope([preds, targets], name, "bce_loss") as name:
         preds = ops.convert_to_tensor(preds, name="preds")
@@ -46,7 +46,15 @@ def conv_cond_concat(x, y):
     y_shapes = y.get_shape()
     return tf.concat(3, [x, y*tf.ones([x_shapes[0], x_shapes[1], x_shapes[2], y_shapes[3]])])
 
-
+'''
+input_ : Input data. The shape should be (batch size, height, width, channel)
+output_dim : Output channel.
+k_h : filter height
+k_w : filter width
+d_h : stride height
+d_w : stride width
+stddev : standard deviation of normal distribution used for weight initailization
+'''
 def conv2d(input_, output_dim,
            k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
            name="conv2d"):
@@ -60,7 +68,15 @@ def conv2d(input_, output_dim,
 
         return conv
 
-
+'''
+input_ : Input data. The shape should be (batch size, height, width, channel)
+output_shape : Output shape. (batch size, height, width, channel). It must match the stride.
+k_h : filter height
+k_w : filter width
+d_h : stride height
+d_w : stride width
+stddev : standard deviation of normal distribution used for weight initailization
+'''
 def deconv2d(input_, output_shape,
              k_h=5, k_w=5, d_h=2, d_w=2, stddev=0.02,
              name="deconv2d", with_w=False):
@@ -87,16 +103,23 @@ def deconv2d(input_, output_shape,
             return deconv
 
 
-def maxpooling(input_, k_h=5, k_w=5, step_h=2, step_w=2, padding='SAME'):
+def maxpooling2d(input_, k_h=5, k_w=5, step_h=2, step_w=2, padding='SAME', name='max_pool'):
     return tf.nn.max_pool(input_, ksize=[1, k_h, k_w, 1],
                           strides = [1, step_h, step_w, 1],
                           padding = padding)
+
+def relu(x, name="relu"):
+  return tf.maximum(x, 0)
 
 
 def lrelu(x, leak=0.2, name="lrelu"):
   return tf.maximum(x, leak*x)
 
-
+'''
+input_ : Input data. The shape should be (batch size, dimension)
+output_size : The number of output nodes.
+stddev : standard deviation of normal distribution used for weight initailization
+'''
 def linear(input_, output_size, scope=None, stddev=0.02, bias_start=0.0, with_w=False):
     shape = input_.get_shape().as_list()
 

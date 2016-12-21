@@ -122,14 +122,14 @@ class SVHN(object):
                 self.sess.run(optim, feed_dict = {self.images : batch_images, \
                         self.y : batch_y})
 
-                if np.mod(counter, 30) == 0:
-                    summary_str = session.run(summary_op)
-                    summary_writer.add_summary(summary_str, total_step)
+                counter += 1
 
+                if np.mod(counter, 30) == 0:
+                    summary_str = self.sess.run(summary_op)
+                    summary_writer.add_summary(summary_str, total_step)
                     network_error = self.loss.eval({self.images: batch_images, self.y: batch_y})
 
-                    counter += 1
-                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f" \
+                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f" \
                         % (epoch, idx, batch_idxs, time.time() - start_time, network_error))
 
                 if np.mod(counter, 500) == 2:

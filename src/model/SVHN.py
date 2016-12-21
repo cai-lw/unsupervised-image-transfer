@@ -10,7 +10,7 @@ from tools.ops import *
 from tools.utils import *
 
 class SVHN(object):
-    def __init__(self, sess, image_size = 32, batch_size=64, c_dim=3,
+    def __init__(self, sess, image_size = 32, batch_size=64, c_dim=3, y_dim=10,
                  checkpoint_dir = None):
         """
         Args:
@@ -54,8 +54,8 @@ class SVHN(object):
         h7_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
         #  2 * 2 * 128
-        h8_conv = relu(conv2d(h1_pool, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h6_conv'))
-        h9_conv = relu(conv2d(h2_conv, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h7_conv'))
+        h8_conv = relu(conv2d(h1_pool, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h8_conv'))
+        h9_conv = relu(conv2d(h2_conv, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h9_conv'))
         h9_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
         # linear ops
@@ -71,7 +71,7 @@ class SVHN(object):
                                     name = 'images')
         self.y = tf.placeholder(tf.float32, [self.batch_size, self.y_dim], name = 'y')
 
-        self.res = net(self.images)
+        self.res = self.net(self.images)
 
         self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.res, self.y))
 
@@ -109,17 +109,17 @@ class SVHN(object):
 
         for epoch in xrange(config.epoch):
 
-            batch_idxs = len(self.images) // config.batch_size
+            batch_idxs = len(data_y_train) // config.batch_size
 
             for idx in xrange(0, batch_idxs):
 
                 batch_images = data_X_train[idx * config.batch_size : (idx + 1) * config.batch_size]
                 batch_y = data_y_train[idx * config.batch_size : (idx + 1) * config.batch_size]
-                batch_images = np.array(batch_src_images) / 127.5 - 1
+                batch_images = np.array(batch_images) / 127.5 - 1
                 batch_images.astype(np.float32)
 
                 # Update network
-                _, summary_str = self.sess.run([optim, self.loss], feed_dict = {self.images : batch_images, \
+                _, summary_str = self.sess.run([optim, [self.loss]], feed_dict = {self.images : batch_images, \
                         self.y : batch_y})
                 self.writer.add_summary(summary_str, counter)
 

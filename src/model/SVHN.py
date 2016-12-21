@@ -82,11 +82,11 @@ class SVHN(object):
     def train(self, config):
         """Train SVHN Model"""
 
-        data_X_extra, data_y_extra = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
+        # data_X_extra, data_y_extra = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
         data_X_train, data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'train_32x32.mat'))
         # data_X_test, data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
-        data_X_train = np.concatenate((data_X_train, data_X_extra), axis=0)
-        data_y_train = np.concatenate((data_y_train, data_y_extra), axis=0)
+        # data_X_train = np.concatenate((data_X_train, data_X_extra), axis=0)
+        # data_y_train = np.concatenate((data_y_train, data_y_extra), axis=0)
         indices = np.arange(len(data_X_train))
         np.random.shuffle(indices)
         data_X_train = data_X_train[indices]
@@ -96,7 +96,7 @@ class SVHN(object):
                           .minimize(self.loss, var_list = self.train_vars)
 
         tf.initialize_all_variables().run()
-
+        summary_op = tf.merge_all_summaries()
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
         counter = 1
@@ -119,15 +119,18 @@ class SVHN(object):
                 batch_images.astype(np.float32)
 
                 # Update network
-                _, summary_str = self.sess.run([optim, [self.loss]], feed_dict = {self.images : batch_images, \
+                self.sess.run(optim, feed_dict = {self.images : batch_images, \
                         self.y : batch_y})
-                self.writer.add_summary(summary_str, counter)
 
-                network_error = self.loss.eval({self.images: batch_images, self.y: batch_y})
+                if np.mod(counter, 30) == 0:
+                    summary_str = session.run(summary_op)
+                    summary_writer.add_summary(summary_str, total_step)
 
-                counter += 1
-                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f" \
-                    % (epoch, idx, batch_idxs, time.time() - start_time, network_error))
+                    network_error = self.loss.eval({self.images: batch_images, self.y: batch_y})
+
+                    counter += 1
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f" \
+                        % (epoch, idx, batch_idxs, time.time() - start_time, network_error))
 
                 if np.mod(counter, 500) == 2:
                     self.save(config.checkpoint_dir, counter)

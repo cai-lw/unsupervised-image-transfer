@@ -58,9 +58,9 @@ def load_image_from_mat(path):
         image = X_mat[:,:,:,i]
         X.append(image)
     # scipy.misc.toimage(X_mat[:,:,:,0]).show()
-    y_vec = np.zeros((len(y), 10), dtype=np.float)
+    y_vec = np.zeros((len(y), 10), dtype = np.float)
     for i, label in enumerate(y):
-        y_vec[i,y[i]-1] = 1.0
+        y_vec[i, y[i]-1] = 1.0
 
     return np.array(X), y_vec
 

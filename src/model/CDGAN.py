@@ -11,7 +11,7 @@ from tools.utils import *
 
 class CrossDomainGAN(object):
     def __init__(self, sess, image_size=108, is_crop=True,
-                 batch_size=64, sample_size = 64, output_size=64,
+                 batch_size=64, sample_size = 64,
                  y_dim=None, z_dim=100, gf_dim=64, df_dim=64,
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None):
@@ -20,7 +20,7 @@ class CrossDomainGAN(object):
         Args:
             sess: TensorFlow session
             batch_size: The size of batch. Should be specified before training.
-            output_size: (optional) The resolution in pixels of the images. [64]
+            image_size: (optional) The resolution in pixels of the images. [64]
             y_dim: (optional) Dimension of dim for y. [None]
             gf_dim: (optional) Dimension of gen filters in first conv layer. [64]
             df_dim: (optional) Dimension of discrim filters in first conv layer. [64]
@@ -34,7 +34,7 @@ class CrossDomainGAN(object):
         self.batch_size = batch_size
         self.image_size = image_size
         self.sample_size = sample_size
-        self.output_size = output_size
+        self.output_size = image_size
 
         self.y_dim = y_dim
 
@@ -65,9 +65,9 @@ class CrossDomainGAN(object):
 
     def build_model(self):
 
-        self.src_images = tf.placeholder(tf.float32, [self.batch_size] + [self.src_size, self.src_size, self.src_c_dim],
+        self.src_images = tf.placeholder(tf.float32, [self.batch_size] + [self.image_size, self.image_size, self.c_dim],
                                     name = 'src_images')
-        self.tgt_images = tf.placeholder(tf.float32, [self.batch_size] + [self.tgt_size, self.tgt_size, self.tgt_c_dim],
+        self.tgt_images = tf.placeholder(tf.float32, [self.batch_size] + [self.image_size, self.image_size, self.c_dim],
                                     name = 'tgt_images')
 
         self.src_images_F = self.f_function(self.src_images)
@@ -118,9 +118,9 @@ class CrossDomainGAN(object):
         tgt_data_X, tgt_data_y = load_mnist(config.tgt_dir)
 
         D_optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
-                          .minimize(self.D_loss, var_list = self.d_vars)
+                          .minimize(self.D_loss, var_list = self.D_vars)
         G_optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
-                          .minimize(self.G_loss, var_list = self.g_vars)
+                          .minimize(self.G_loss, var_list = self.G_vars)
         tf.initialize_all_variables().run()
 
         self.g_sum = tf.merge_summary([self.z_sum, self.d__sum,
@@ -276,9 +276,9 @@ class CrossDomainGAN(object):
         if reuse:
             tf.get_variable_scope().reuse_variables()
         h0 = lrelu(conv2d(image, self.df_dim, name='f_h0_conv'))
-        h1 = lrelu(self.f_bn1(conv2d(h0, self.df_dim*2, name='f_h1_conv')))
-        h2 = lrelu(self.f_bn2(conv2d(h1, self.df_dim*4, name='f_h2_conv')))
-        h3 = lrelu(self.f_bn3(conv2d(h2, self.df_dim*8, name='f_h3_conv')))
+        h1 = lrelu(self.F_bn1(conv2d(h0, self.df_dim*2, name='f_h1_conv')))
+        h2 = lrelu(self.F_bn2(conv2d(h1, self.df_dim*4, name='f_h2_conv')))
+        h3 = lrelu(self.F_bn3(conv2d(h2, self.df_dim*8, name='f_h3_conv')))
         h4 = linear(tf.reshape(h3, [self.batch_size, -1]), 1, 'd_h3_lin')
 
         return h4

@@ -34,7 +34,12 @@ def load_mnist(path):
     trY = np.asarray(trY)
     teY = np.asarray(teY)
 
-    X = np.concatenate((trX, teX), axis=0)
+    X_raw = np.concatenate((trX, teX), axis=0)
+    X = np.zeros((X.shape[0], 32, 32, 3), dtype=np.uint8)
+    for i in range(X.shape[0]):
+        old_img = X_raw[i, :, :, 0]
+        new_img = scipy.misc.imresize(old_img, (32, 32)).repeat(3).reshape((32, 32, 3))
+        X[i, :, :, :] = new_img
     y = np.concatenate((trY, teY), axis=0)
 
     seed = 547

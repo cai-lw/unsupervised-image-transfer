@@ -69,11 +69,14 @@ class SVHN(object):
 
         self.images = tf.placeholder(tf.float32, [self.batch_size] + [self.image_size, self.image_size, self.c_dim],
                                     name = 'images')
-        self.y = tf.placeholder(tf.float32, [self.batch_size, self.y_dim], name = 'y')
+
+        self.y_vec = tf.placeholder(tf.float32, [self.batch_size, self.y_dim], name = 'y_vec')
 
         self.res = self.net(self.images)
 
-        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.res, self.y))
+        self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.res, self.y_vec))
+
+        self.accuracy = tf.reduce_mean(tf.cast(tf.nn.in_top_k(self.res, tf.cast(tf.argmax(self.y_vec, dimension=1), dtype=tf.int32), 1), tf.float32))
 
         self.train_vars = tf.trainable_variables()
 
@@ -82,11 +85,11 @@ class SVHN(object):
     def train(self, config):
         """Train SVHN Model"""
 
-        # data_X_extra, data_y_extra = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
+        data_X_extra, data_y_extra = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
         data_X_train, data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'train_32x32.mat'))
-        # data_X_test, data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
-        # data_X_train = np.concatenate((data_X_train, data_X_extra), axis=0)
-        # data_y_train = np.concatenate((data_y_train, data_y_extra), axis=0)
+        data_X_test, data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
+        data_X_train = np.concatenate((data_X_train, data_X_extra), axis=0)
+        data_y_train = np.concatenate((data_y_train, data_y_extra), axis=0)
         indices = np.arange(len(data_X_train))
         np.random.shuffle(indices)
         data_X_train = data_X_train[indices]
@@ -94,12 +97,11 @@ class SVHN(object):
 
         optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
                           .minimize(self.loss, var_list = self.train_vars)
-
-        tf.initialize_all_variables().run()
-        summary_op = tf.merge_all_summaries()
         self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
 
-        counter = 1
+        tf.initialize_all_variables().run()
+
+        counter = 0
         start_time = time.time()
 
         if self.load(self.checkpoint_dir):
@@ -114,26 +116,40 @@ class SVHN(object):
             for idx in xrange(0, batch_idxs):
 
                 batch_images = data_X_train[idx * config.batch_size : (idx + 1) * config.batch_size]
-                batch_y = data_y_train[idx * config.batch_size : (idx + 1) * config.batch_size]
                 batch_images = np.array(batch_images) / 127.5 - 1
                 batch_images.astype(np.float32)
+                batch_y_vec = data_y_train[idx * config.batch_size : (idx + 1) * config.batch_size]
 
                 # Update network
-                self.sess.run(optim, feed_dict = {self.images : batch_images, \
-                        self.y : batch_y})
+                self.sess.run(optim, feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
 
                 counter += 1
 
-                if np.mod(counter, 30) == 0:
-                    summary_str = self.sess.run(summary_op)
-                    summary_writer.add_summary(summary_str, total_step)
-                    network_error = self.loss.eval({self.images: batch_images, self.y: batch_y})
+                # train log
+                if np.mod(counter, 50) == 0:
+                    network_error, network_accuracy = self.sess.run([self.loss, self.accuracy], feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f, accuracy: %.8f" \
+                            % (epoch, idx, batch_idxs, time.time() - start_time, network_error, network_accuracy))
 
-                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f" \
-                        % (epoch, idx, batch_idxs, time.time() - start_time, network_error))
-
-                if np.mod(counter, 500) == 2:
+                # validation
+                test_loss = 0
+                test_accuracy = 0
+                if np.mod(counter, 500) == 0:
+                    test_batch_idxs = len(data_y_test) // config.batch_size
+                    for test_idx in xrange(0, test_batch_idxs):
+                        batch_test_images = data_X_test[test_idx * config.batch_size : (test_idx + 1) * config.batch_size]
+                        batch_test_images = np.array(batch_test_images) / 127.5 - 1
+                        batch_test_images.astype(np.float32)
+                        batch_test_y_vec = data_y_test[test_idx * config.batch_size : (test_idx + 1) * config.batch_size]
+                        batch_test_loss, batch_test_accuracy = self.sess.run([self.loss, self.accuracy], feed_dict = {self.images : batch_test_images, \
+                                self.y_vec : batch_test_y_vec})
+                        test_loss += batch_test_loss
+                        test_accuracy += batch_test_accuracy
+                    test_loss = test_loss / test_batch_idxs
+                    test_accuracy = test_accuracy / test_batch_idxs
+                    print("Count: [%2d] test_lost: %.8f, test_accuracy: %.8f" %(counter, test_loss, test_accuracy))
                     self.save(config.checkpoint_dir, counter)
+
 
     def save(self, checkpoint_dir, step):
 

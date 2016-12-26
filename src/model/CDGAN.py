@@ -287,6 +287,7 @@ class CrossDomainGAN(object):
 
                 return tf.nn.sigmoid(deconv2d(h2, [self.batch_size, s, s, self.c_dim], name='g_h3'))
 
+
     def sampler(self, z, y=None):
         with tf.variable_scope("sampler", reuse=True):
             if not self.y_dim:

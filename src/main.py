@@ -14,15 +14,13 @@ flags.DEFINE_float("beta1", 0.5, "Momentum term of adam [0.5]")
 flags.DEFINE_integer("train_size", np.inf, "The size of train images [np.inf]")
 flags.DEFINE_integer("batch_size", 64, "The size of batch images [64]")
 flags.DEFINE_integer("image_size", 32, "The size of the src images [32]")
-flags.DEFINE_integer("src_c_dim", 3, "Dimension of src image color. [3]")
-flags.DEFINE_integer("dst_c_dim", 1, "Dimension of dst image color. [1]")
+flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_string("dataset", "mnist", "The name of dataset [celebA, mnist, lsun]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
 flags.DEFINE_string("sample_dir", "samples", "Directory name to save the image samples [samples]")
-flags.DEFINE_string("src_dir", "Dataset/SVHN", "Directory name of source images [samples]")
-flags.DEFINE_string("tgt_dir", "Dataset/MNIST", "Directory name of target images [samples]")
-flags.DEFINE_boolean("is_train", False, "True for training, False for testing [False]")
-flags.DEFINE_boolean("is_crop", False, "True for training, False for testing [False]")
+flags.DEFINE_string("src_dir", "../Dataset/SVHN", "Directory name of source images [samples]")
+flags.DEFINE_string("tgt_dir", "../Dataset/MNIST", "Directory name of target images [samples]")
+flags.DEFINE_boolean("is_train", True, "True for training, False for testing [False]")
 flags.DEFINE_boolean("visualize", False, "True for visualizing, False for nothing [False]")
 FLAGS = flags.FLAGS
 
@@ -35,12 +33,8 @@ def main(_):
         os.makedirs(FLAGS.sample_dir)
 
     with tf.Session() as sess:
-        if FLAGS.dataset == 'mnist':
-            cdgan = CrossDomainGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, y_dim=10, c_dim=1,
-                    dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir, sample_dir=FLAGS.sample_dir)
-        else:
-            cdgan = CrossDomainGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, c_dim=FLAGS.c_dim,
-                    dataset_name=FLAGS.dataset, is_crop=FLAGS.is_crop, checkpoint_dir=FLAGS.checkpoint_dir, sample_dir=FLAGS.sample_dir)
+        cdgan = CrossDomainGAN(sess, image_size=FLAGS.image_size, batch_size=FLAGS.batch_size, c_dim=FLAGS.c_dim,
+                dataset_name=FLAGS.dataset, checkpoint_dir=FLAGS.checkpoint_dir, sample_dir=FLAGS.sample_dir)
 
         if FLAGS.is_train:
             cdgan.train(FLAGS)

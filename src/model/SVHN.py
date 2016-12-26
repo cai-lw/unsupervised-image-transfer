@@ -29,40 +29,38 @@ class SVHN(object):
         self.checkpoint_dir = checkpoint_dir
         self.build_model()
 
-    def net(self, images, reuse=False):
-        if reuse:
-            tf.get_variable_scope().reuse_variables()
+    def net(self, images, reuse=None):
+        with tf.variable_scope("net", reuse=reuse):
+            # 32 * 32 * 3
+            h0_conv = relu(conv2d(images, 16, k_h=3, k_w=3, d_h=1, d_w=1, name='h0_conv'))
+            h1_conv = relu(conv2d(h0_conv, 16, k_h=3, k_w=3, d_h=1, d_w=1, name='h1_conv'))
+            h1_pool = maxpooling2d(h1_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
-        # 32 * 32 * 3
-        h0_conv = relu(conv2d(images, 16, k_h=3, k_w=3, d_h=1, d_w=1, name='h0_conv'))
-        h1_conv = relu(conv2d(h0_conv, 16, k_h=3, k_w=3, d_h=1, d_w=1, name='h1_conv'))
-        h1_pool = maxpooling2d(h1_conv, k_h=2, k_w=2, step_h=2, step_w=2)
+            # 16 * 16 * 16
+            h2_conv = relu(conv2d(h1_pool, 32, k_h=3, k_w=3, d_h=1, d_w=1, name='h2_conv'))
+            h3_conv = relu(conv2d(h2_conv, 32, k_h=3, k_w=3, d_h=1, d_w=1, name='h3_conv'))
+            h3_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
-        # 16 * 16 * 16
-        h2_conv = relu(conv2d(h1_pool, 32, k_h=3, k_w=3, d_h=1, d_w=1, name='h2_conv'))
-        h3_conv = relu(conv2d(h2_conv, 32, k_h=3, k_w=3, d_h=1, d_w=1, name='h3_conv'))
-        h3_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
+            # 8 * 8 * 32
+            h4_conv = relu(conv2d(h1_pool, 64, k_h=3, k_w=3, d_h=1, d_w=1, name='h4_conv'))
+            h5_conv = relu(conv2d(h2_conv, 64, k_h=3, k_w=3, d_h=1, d_w=1, name='h5_conv'))
+            h5_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
-        # 8 * 8 * 32
-        h4_conv = relu(conv2d(h1_pool, 64, k_h=3, k_w=3, d_h=1, d_w=1, name='h4_conv'))
-        h5_conv = relu(conv2d(h2_conv, 64, k_h=3, k_w=3, d_h=1, d_w=1, name='h5_conv'))
-        h5_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
+            # 4 * 4 * 64
+            h6_conv = relu(conv2d(h1_pool, 128, k_h=3, k_w=3, d_h=1, d_w=1, name='h6_conv'))
+            h7_conv = relu(conv2d(h2_conv, 128, k_h=3, k_w=3, d_h=1, d_w=1, name='h7_conv'))
+            h7_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
-        # 4 * 4 * 64
-        h6_conv = relu(conv2d(h1_pool, 128, k_h=3, k_w=3, d_h=1, d_w=1, name='h6_conv'))
-        h7_conv = relu(conv2d(h2_conv, 128, k_h=3, k_w=3, d_h=1, d_w=1, name='h7_conv'))
-        h7_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
+            #  2 * 2 * 128
+            h8_conv = relu(conv2d(h1_pool, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h8_conv'))
+            h9_conv = relu(conv2d(h2_conv, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h9_conv'))
+            h9_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
-        #  2 * 2 * 128
-        h8_conv = relu(conv2d(h1_pool, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h8_conv'))
-        h9_conv = relu(conv2d(h2_conv, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h9_conv'))
-        h9_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
+            # linear ops
+            h10_lin = linear(tf.reshape(h9_pool, [self.batch_size, -1]), 256, 'h10_lin')
+            res = linear(h10_lin, 10, 'res')
 
-        # linear ops
-        h10_lin = linear(tf.reshape(h9_pool, [self.batch_size, -1]), 256, 'h10_lin')
-        res = linear(h10_lin, 10, 'res')
-
-        return res
+            return res, h10_lin
 
 
     def build_model(self):
@@ -72,7 +70,7 @@ class SVHN(object):
 
         self.y_vec = tf.placeholder(tf.float32, [self.batch_size, self.y_dim], name = 'y_vec')
 
-        self.res = self.net(self.images)
+        self.res, _ = self.net(self.images)
 
         self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.res, self.y_vec))
 
@@ -129,12 +127,12 @@ class SVHN(object):
                 if np.mod(counter, 50) == 0:
                     network_error, network_accuracy = self.sess.run([self.loss, self.accuracy], feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
                     print("Epoch: [%2d] [%4d/%4d] time: %4.4f, loss: %.8f, accuracy: %.8f" \
-                            % (epoch, idx, batch_idxs, time.time() - start_time, network_error, network_accuracy))
+                            % (epoch, idx+1, batch_idxs, time.time() - start_time, network_error, network_accuracy))
 
                 # validation
                 test_loss = 0
                 test_accuracy = 0
-                if np.mod(counter, 500) == 0:
+                if np.mod(counter, 1000) == 0:
                     test_batch_idxs = len(data_y_test) // config.batch_size
                     for test_idx in xrange(0, test_batch_idxs):
                         batch_test_images = data_X_test[test_idx * config.batch_size : (test_idx + 1) * config.batch_size]
@@ -147,9 +145,11 @@ class SVHN(object):
                         test_accuracy += batch_test_accuracy
                     test_loss = test_loss / test_batch_idxs
                     test_accuracy = test_accuracy / test_batch_idxs
-                    print("Count: [%2d] test_lost: %.8f, test_accuracy: %.8f" %(counter, test_loss, test_accuracy))
+                    print("Count: [%2d] test_loss: %.8f, test_accuracy: %.8f" %(counter, test_loss, test_accuracy))
                     self.save(config.checkpoint_dir, counter)
 
+    def features(self, images):
+        return self.net(images, reuse=True)[1]
 
     def save(self, checkpoint_dir, step):
 
@@ -162,7 +162,7 @@ class SVHN(object):
 
     def load(self, checkpoint_dir):
 
-        print(" [*] Reading checkpoints...")
+        print(" [*] Reading SVHN checkpoints...")
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)

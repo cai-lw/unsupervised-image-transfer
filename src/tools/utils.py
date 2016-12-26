@@ -13,7 +13,7 @@ pp = pprint.PrettyPrinter()
 
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
-def load_mnist(path):
+def load_mnist(path, part="all"):
 
     fd = open(os.path.join(path,'train-images.idx3-ubyte'))
     loaded = np.fromfile(file=fd,dtype=np.uint8)
@@ -34,13 +34,21 @@ def load_mnist(path):
     trY = np.asarray(trY)
     teY = np.asarray(teY)
 
-    X_raw = np.concatenate((trX, teX), axis=0)
-    X = np.zeros((X.shape[0], 32, 32, 3), dtype=np.uint8)
-    for i in range(X.shape[0]):
+    if part == "train":
+        X_raw = trX
+        y = trY
+    elif part == "test":
+        X_raw = teX
+        y = teY
+    else:
+        X_raw = np.concatenate((trX, teX), axis=0)
+        y = np.concatenate((trY, teY), axis=0)
+
+    X = np.zeros((X_raw.shape[0], 32, 32, 3), dtype=np.uint8)
+    for i in range(X_raw.shape[0]):
         old_img = X_raw[i, :, :, 0]
         new_img = scipy.misc.imresize(old_img, (32, 32)).repeat(3).reshape((32, 32, 3))
         X[i, :, :, :] = new_img
-    y = np.concatenate((trY, teY), axis=0)
 
     seed = 547
     np.random.seed(seed)

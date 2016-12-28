@@ -27,6 +27,7 @@ class SVHN(object):
         self.y_dim = y_dim
         self.c_dim = c_dim
         self.checkpoint_dir = checkpoint_dir
+        self.model_name = "SVHN"
         self.build_model()
 
     def net(self, images, reuse=None):
@@ -99,7 +100,7 @@ class SVHN(object):
 
         optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
                           .minimize(self.loss, var_list = self.train_vars)
-        self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
+        writer = tf.train.SummaryWriter(os.path.join(config.log_dir, self.model_name), self.sess.graph)
 
         tf.initialize_all_variables().run()
 
@@ -158,21 +159,24 @@ class SVHN(object):
         return self.net(images, reuse=True)[1]
 
     def save(self, checkpoint_dir, step):
+        checkpoint_dir = os.path.join(checkpoint_dir, self.model_name)
 
-        model_name = "SVHN.model"
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
+
         self.saver.save(self.sess,
-                        os.path.join(checkpoint_dir, model_name),
+                        os.path.join(checkpoint_dir, self.model_name),
                         global_step=step)
 
     def load(self, checkpoint_dir):
-
         print(" [*] Reading SVHN checkpoints...")
+
+        checkpoint_dir = os.path.join(checkpoint_dir, self.model_name)
+
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
-            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+            save_path = tf.train.latest_checkpoint(checkpoint_dir)
+            self.saver.restore(self.sess, save_path)
             return True
         else:
             return False

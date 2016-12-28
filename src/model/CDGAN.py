@@ -51,7 +51,7 @@ class CrossDomainGAN(object):
         self.TID_weight = TID_weight
         self.TV_weight = TV_weight
 
-        self.dataset_name = dataset_name
+        self.model_name = "CDGAN_%s" % dataset_name
 
         # batch normalization : deals with poor initialization helps gradient flow
         self.D_bn1 = batch_norm(name = 'D_bn1')
@@ -151,7 +151,7 @@ class CrossDomainGAN(object):
         G_optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
                           .minimize(self.G_loss, var_list = self.G_vars)
 
-        writer = tf.train.SummaryWriter(config.log_dir, self.sess.graph)
+        writer = tf.train.SummaryWriter(os.path.join(config.log_dir, self.model_name), self.sess.graph)
 
         tf.initialize_all_variables().run()
 
@@ -216,9 +216,9 @@ class CrossDomainGAN(object):
                                 feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test})
                             batch_mosaic_size = [int(np.ceil(np.sqrt(config.batch_size)))] * 2
                             save_images(batch_src_test, batch_mosaic_size,
-                                './{}/{:04d}_{:04d}_src.png'.format(config.sample_dir, counter, idx))
+                                './{}/{}/{:04d}_{:04d}_src.png'.format(config.sample_dir, self.model_name, counter, idx))
                             save_images(samples, batch_mosaic_size,
-                                './{}/{:04d}_{:04d}_gen.png'.format(config.sample_dir, counter, idx))
+                                './{}/{}/{:04d}_{:04d}_gen.png'.format(config.sample_dir, self.model_name, counter, idx))
                     test_d_loss /= test_batch_idxs
                     test_g_loss /= test_batch_idxs
                     print("[Sample] d_loss: %.8f, g_loss: %.8f" % (test_d_loss, test_g_loss))
@@ -350,27 +350,24 @@ class CrossDomainGAN(object):
 
 
     def save(self, checkpoint_dir, step):
-        model_name = "CrossDomainGAN.model"
-        model_dir = "%s_%s_%s" % (self.dataset_name, self.batch_size, self.output_size)
-        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
+        checkpoint_dir = os.path.join(checkpoint_dir, self.model_name)
 
         if not os.path.exists(checkpoint_dir):
             os.makedirs(checkpoint_dir)
 
         self.saver.save(self.sess,
-                        os.path.join(checkpoint_dir, model_name),
+                        os.path.join(checkpoint_dir, self.model_name),
                         global_step=step)
 
     def load(self, checkpoint_dir):
         print(" [*] Reading CDGAN checkpoints...")
 
-        model_dir = "%s_%s_%s" % (self.dataset_name, self.batch_size, self.output_size)
-        checkpoint_dir = os.path.join(checkpoint_dir, model_dir)
+        checkpoint_dir = os.path.join(checkpoint_dir, self.model_name)
 
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
-            ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
-            self.saver.restore(self.sess, os.path.join(checkpoint_dir, ckpt_name))
+            save_path = tf.train.latest_checkpoint(checkpoint_dir)
+            self.saver.restore(self.sess, save_path)
             return True
         else:
             return False

@@ -13,6 +13,7 @@ flags.DEFINE_integer("image_size", 32, "The size of the images [32]")
 flags.DEFINE_integer("c_dim", 3, "Dimension of image color. [3]")
 flags.DEFINE_integer("y_dim", 10, "Dimension of class. [10]")
 flags.DEFINE_string("checkpoint_dir", "checkpoint", "Directory name to save the checkpoints [checkpoint]")
+flags.DEFINE_string("log_dir", "logs", "Directory name to save the tensorflow summaries [logs]")
 flags.DEFINE_string("src_dir", "../Dataset/SVHN", "Directory name to dataset [../Dataset/SVHN]")
 flags.DEFINE_boolean("is_train", True, "True for training, False for testing [True]")
 FLAGS = flags.FLAGS

@@ -128,7 +128,8 @@ class CrossDomainGAN(object):
         self.G_loss = self.GANG_loss + self.CONST_weight * self.CONST_loss + self.TID_weight * self.TID_loss + self.TV_weight * self.TV_loss
         self.G_loss_sum = tf.scalar_summary('G_loss', self.G_loss)
 
-        self.all_sum = tf.merge_all_summaries()
+        self.all_sum = tf.merge_summary([self.D_loss_sum, self.GANG_loss_sum, self.CONST_loss_sum,
+            self.TID_loss_sum, self.TV_loss_sum, self.G_loss_sum])
 
         t_vars = tf.trainable_variables()
 
@@ -170,10 +171,8 @@ class CrossDomainGAN(object):
 
                 batch_src_images = src_data_X_train[idx * config.batch_size : (idx + 1) * config.batch_size]
                 batch_tgt_images = tgt_data_X_train[idx * config.batch_size : (idx + 1) * config.batch_size]
-                batch_src_images = np.array(batch_src_images) / 127.5 - 1
-                batch_tgt_images = np.array(batch_tgt_images) / 127.5 - 1
-                batch_src_images.astype(np.float32)
-                batch_tgt_images.astype(np.float32)
+                batch_src_images = batch_src_images.astype(np.float32) / 127.5 - 1
+                batch_tgt_images = batch_tgt_images.astype(np.float32) / 127.5 - 1
 
                 # Update G network
                 self.sess.run(G_optim, feed_dict = {self.src_images : batch_src_images, \
@@ -218,8 +217,6 @@ class CrossDomainGAN(object):
                             batch_mosaic_size = [int(np.ceil(np.sqrt(config.batch_size)))] * 2
                             save_images(batch_src_test, batch_mosaic_size,
                                 './{}/{:04d}_{:04d}_src.png'.format(config.sample_dir, counter, idx))
-                            save_images(batch_tgt_test, batch_mosaic_size,
-                                './{}/{:04d}_{:04d}_tgt.png'.format(config.sample_dir, counter, idx))
                             save_images(samples, batch_mosaic_size,
                                 './{}/{:04d}_{:04d}_gen.png'.format(config.sample_dir, counter, idx))
                     test_d_loss /= test_batch_idxs

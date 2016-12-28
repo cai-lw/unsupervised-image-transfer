@@ -14,7 +14,7 @@ pp = pprint.PrettyPrinter()
 
 get_stddev = lambda x, k_h, k_w: 1/math.sqrt(k_w*k_h*x.get_shape()[-1])
 
-def load_mnist(path, part="all"):
+def load_mnist(path, part="all", shuffle=True):
 
     fd = open(os.path.join(path,'train-images.idx3-ubyte'))
     loaded = np.fromfile(file=fd,dtype=np.uint8)
@@ -51,11 +51,12 @@ def load_mnist(path, part="all"):
         new_img = scipy.misc.imresize(old_img, (32, 32)).repeat(3).reshape((32, 32, 3))
         X[i, :, :, :] = new_img
 
-    seed = 547
-    np.random.seed(seed)
-    np.random.shuffle(X)
-    np.random.seed(seed)
-    np.random.shuffle(y)
+    if shuffle:
+        seed = 547
+        np.random.seed(seed)
+        np.random.shuffle(X)
+        np.random.seed(seed)
+        np.random.shuffle(y)
 
     y_vec = np.zeros((len(y), 10), dtype=np.float)
     for i, label in enumerate(y):
@@ -63,7 +64,7 @@ def load_mnist(path, part="all"):
 
     return X, y_vec
 
-def load_image_from_mat(path):
+def load_image_from_mat(path, shuffle=True):
     mat = scipy.io.loadmat(path)
     X_mat = mat['X']
     y = mat['y']
@@ -71,12 +72,20 @@ def load_image_from_mat(path):
     for i in range(X_mat.shape[-1]):
         image = X_mat[:,:,:,i]
         X.append(image)
-    # scipy.misc.toimage(X_mat[:,:,:,0]).show()
+    X = np.array(X)
+
+    if shuffle:
+        seed = 547
+        np.random.seed(seed)
+        np.random.shuffle(X)
+        np.random.seed(seed)
+        np.random.shuffle(y)
+
     y_vec = np.zeros((len(y), 10), dtype = np.float)
     for i, label in enumerate(y):
         y_vec[i, y[i]-1] = 1.0
 
-    return np.array(X), y_vec
+    return X, y_vec
 
 def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = False):
     return transform(imread(image_path, is_grayscale), image_size, is_crop, resize_w)

@@ -69,11 +69,16 @@ class SVHN(object):
 
         self.y_vec = tf.placeholder(tf.float32, [self.batch_size, self.y_dim], name = 'y_vec')
 
-        self.res, _ = self.net(self.images)
+        self.res, self.feats = self.net(self.images)
+        self.feature_sum = tf.histogram_summary("feature", self.feats)
 
         self.loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.res, self.y_vec))
+        self.loss_sum = tf.scalar_summary("loss", self.loss)
 
         self.accuracy = tf.reduce_mean(tf.cast(tf.nn.in_top_k(self.res, tf.cast(tf.argmax(self.y_vec, dimension=1), dtype=tf.int32), 1), tf.float32))
+        self.accuracy_sum = tf.scalar_summary("accuracy", self.accuracy)
+
+        self.all_sum = tf.merge_summary([self.feature_sum, self.loss_sum, self.accuracy_sum])
 
         self.train_vars = tf.trainable_variables()
 
@@ -119,6 +124,8 @@ class SVHN(object):
 
                 # Update network
                 self.sess.run(optim, feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
+                summary = self.sess.run(self.all_sum, feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
+                writer.add_summary(summary)
 
                 counter += 1
 

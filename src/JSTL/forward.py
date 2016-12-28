@@ -15,7 +15,7 @@ def forward(net, model_path, img_list):
     input_node = net.inputs['data']
     # Get the output of the network (class probabilities)
     net_out = net.get_output()
-    img_prefix = '/data/DL_Project/Dataset/lookbook/data/'
+    img_prefix = '../../Dataset/lookbook/data/'
     fout = open('LookBookFeature.txt', 'w')
     with tf.Session() as sess:
         # Load the converted parameters

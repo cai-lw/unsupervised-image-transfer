@@ -126,7 +126,7 @@ class SVHN(object):
                 # Update network
                 self.sess.run(optim, feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
                 summary = self.sess.run(self.all_sum, feed_dict = {self.images : batch_images, self.y_vec : batch_y_vec})
-                writer.add_summary(summary)
+                writer.add_summary(summary, counter)
 
                 counter += 1
 

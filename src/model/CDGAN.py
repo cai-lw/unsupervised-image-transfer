@@ -90,6 +90,7 @@ class CrossDomainGAN(object):
 
         self.tgt_images_F = self.f_function(self.tgt_images)
         self.tgt_images_FG = self.generator(self.tgt_images_F, reuse=True)
+        self.gen_images_sum = tf.image_summary('gen_images', self.tgt_images_FG)
 
         self.D_1, self.D_logits_1 = self.discriminator(self.src_images_FG)
         self.D_2, self.D_logits_2 = self.discriminator(self.tgt_images_FG, reuse=True)
@@ -103,19 +104,31 @@ class CrossDomainGAN(object):
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)])))
 
         self.D_loss = self.D_loss_1 + self.D_loss_2 + self.D_loss_3
+        self.D_loss_sum = tf.scalar_summary('D_loss', self.D_loss)
 
         self.GANG_loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.D_logits_1,
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)]))) \
                 + tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(self.D_logits_2,
                 np.array([np.array([0.0, 0.0, 1.0]) for i in range(self.batch_size)])))
-        self.CONST_loss =  self.CONST_weight * tf.reduce_mean(tf.squared_difference(self.src_images_F, self.src_images_FGF))
-        self.TID_loss = self.TID_weight * tf.reduce_mean(tf.squared_difference(self.tgt_images, self.tgt_images_FG))
+        self.GANG_loss_sum = tf.scalar_summary('GANG_loss', self.GANG_loss)
+
+        self.CONST_loss = tf.reduce_mean(tf.squared_difference(self.src_images_F, self.src_images_FGF))
+        self.CONST_loss_sum = tf.scalar_summary('CONST_loss', self.CONST_loss)
+
+        self.TID_loss = tf.reduce_mean(tf.squared_difference(self.tgt_images, self.tgt_images_FG))
+        self.TID_loss_sum = tf.scalar_summary('TID_loss', self.TID_loss)
+
         # total variation denoising
-        self.TV_loss = self.TV_weight * (tf.reduce_mean(tf.squared_difference(self.tgt_images_FG[:,1:,:,:], self.tgt_images_FG[:,:-1,:,:])) +
+        self.TV_loss = (tf.reduce_mean(tf.squared_difference(self.tgt_images_FG[:,1:,:,:], self.tgt_images_FG[:,:-1,:,:])) +
                 tf.reduce_mean(tf.squared_difference(self.tgt_images_FG[:,:,1:,:], self.tgt_images_FG[:,:,:-1,:])) +
                 tf.reduce_mean(tf.squared_difference(self.src_images_FG[:,1:,:,:], self.src_images_FG[:,:-1,:,:])) +
                         tf.reduce_mean(tf.squared_difference(self.src_images_FG[:,:,1:,:], self.src_images_FG[:,:,:-1,:])))
-        self.G_loss = self.GANG_loss + self.CONST_loss + self.TID_loss + self.TV_loss
+        self.TV_loss_sum = tf.scalar_summary('TV_loss', self.TV_loss)
+
+        self.G_loss = self.GANG_loss + self.CONST_weight * self.CONST_loss + self.TID_weight * self.TID_loss + self.TV_weight * self.TV_loss
+        self.G_loss_sum = tf.scalar_summary('G_loss', self.G_loss)
+
+        self.all_sum = tf.merge_all_summaries()
 
         t_vars = tf.trainable_variables()
 
@@ -136,11 +149,10 @@ class CrossDomainGAN(object):
                           .minimize(self.D_loss, var_list = self.D_vars)
         G_optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
                           .minimize(self.G_loss, var_list = self.G_vars)
-        tf.initialize_all_variables().run()
 
-        # self.g_sum = tf.merge_summary([self.z_sum, self.d_sum, self.G_sum, self.d_loss_fake_sum, self.g_loss_sum])
-        # self.d_sum = tf.merge_summary([self.z_sum, self.d_sum, self.d_loss_real_sum, self.d_loss_sum])
-        # self.writer = tf.train.SummaryWriter("./logs", self.sess.graph)
+        writer = tf.train.SummaryWriter(config.log_dir, self.sess.graph)
+
+        tf.initialize_all_variables().run()
 
         counter = 0
         start_time = time.time()
@@ -166,23 +178,21 @@ class CrossDomainGAN(object):
                 # Update G network
                 self.sess.run(G_optim, feed_dict = {self.src_images : batch_src_images, \
                         self.tgt_images : batch_tgt_images})
-                # self.writer.add_summary(summary_str, counter)
 
                 # Update D network
                 self.sess.run(D_optim, feed_dict = {self.src_images : batch_src_images, \
                         self.tgt_images : batch_tgt_images})
-                # self.writer.add_summary(summary_str, counter)
 
                 # Update G network
                 self.sess.run(G_optim, feed_dict = {self.src_images : batch_src_images, \
                         self.tgt_images : batch_tgt_images})
-                # self.writer.add_summary(summary_str, counter)
 
-                D_error = self.D_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
-                G_error = self.G_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
-                GAND_error = self.GANG_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
-                CONST_error = self.CONST_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
-                TID_error = self.TID_loss.eval({self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
+                summary = self.sess.run(self.all_sum, feed_dict = {self.src_images : batch_src_images, \
+                        self.tgt_images : batch_tgt_images})
+                writer.add_summary(summary, counter)
+
+                D_error, G_error = self.sess.run([self.D_loss, self.G_loss],
+                    feed_dict = {self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
 
                 counter += 1
                 print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
@@ -191,10 +201,10 @@ class CrossDomainGAN(object):
 
                 if np.mod(counter, 100) == 0:
                     test_batch_idxs = min(src_data_X_test.shape[0], tgt_data_X_test.shape[0]) // config.batch_size
-                    test_d_loss = 0,
+                    test_d_loss = 0
                     test_g_loss = 0
                     for idx in xrange(0, test_batch_idxs):
-                        batch_src_test= src_data_X_test[idx * config.batch_size : (idx + 1) * config.batch_size]
+                        batch_src_test = src_data_X_test[idx * config.batch_size : (idx + 1) * config.batch_size]
                         batch_tgt_test = tgt_data_X_test[idx * config.batch_size : (idx + 1) * config.batch_size]
                         d_loss, g_loss = self.sess.run(
                             [self.D_loss, self.G_loss],
@@ -202,9 +212,18 @@ class CrossDomainGAN(object):
                         )
                         test_d_loss += d_loss
                         test_g_loss += g_loss
+                        if idx * 5 % test_batch_idxs < 5:
+                            samples = self.sess.run(self.src_images_FG,
+                                feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test})
+                            batch_mosaic_size = [int(np.ceil(np.sqrt(config.batch_size)))] * 2
+                            save_images(batch_src_test, batch_mosaic_size,
+                                './{}/{:04d}_{:04d}_src.png'.format(config.sample_dir, counter, idx))
+                            save_images(batch_tgt_test, batch_mosaic_size,
+                                './{}/{:04d}_{:04d}_tgt.png'.format(config.sample_dir, counter, idx))
+                            save_images(samples, batch_mosaic_size,
+                                './{}/{:04d}_{:04d}_gen.png'.format(config.sample_dir, counter, idx))
                     test_d_loss /= test_batch_idxs
                     test_g_loss /= test_batch_idxs
-                    # save_images(samples, [8, 8], './{}/train_{:02d}_{:04d}.png'.format(config.sample_dir, epoch, idx))
                     print("[Sample] d_loss: %.8f, g_loss: %.8f" % (test_d_loss, test_g_loss))
 
                 if np.mod(counter, 500) == 0:
@@ -289,7 +308,7 @@ class CrossDomainGAN(object):
 
 
     def sampler(self, z, y=None):
-        with tf.variable_scope("sampler", reuse=True):
+        with tf.variable_scope("generator", reuse=True):
             if not self.y_dim:
 
                 s = self.output_size

@@ -83,7 +83,7 @@ class SVHN(object):
         """Train SVHN Model"""
 
         # data_X_extra, data_y_extra = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
-        data_X_train, data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'train_32x32.mat'))
+        data_X_train, data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
         data_X_test, data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
         # data_X_train = np.concatenate((data_X_train, data_X_extra), axis=0)
         # data_y_train = np.concatenate((data_y_train, data_y_extra), axis=0)

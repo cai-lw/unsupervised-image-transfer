@@ -1,6 +1,7 @@
 Dataset/*
 src/checkpoint/*
 src/logs/*
+src/samples/*
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/

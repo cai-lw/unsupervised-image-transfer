@@ -3,6 +3,7 @@ import math
 import json
 import os
 import random
+from six.moves import xrange
 import pprint
 import scipy.misc
 import scipy.io
@@ -40,7 +41,7 @@ def load_mnist(path, part="all"):
     elif part == "test":
         X_raw = teX
         y = teY
-    else:
+    elif part == "all":
         X_raw = np.concatenate((trX, teX), axis=0)
         y = np.concatenate((trY, teY), axis=0)
 
@@ -81,7 +82,7 @@ def get_image(image_path, image_size, is_crop=True, resize_w=64, is_grayscale = 
     return transform(imread(image_path, is_grayscale), image_size, is_crop, resize_w)
 
 def save_images(images, size, image_path):
-    return imsave(inverse_transform(images), size, image_path)
+    return scipy.misc.imsave(image_path, merge_images(inverse_transform(images), size))
 
 def imread(path, is_grayscale = False):
     if (is_grayscale):
@@ -90,7 +91,16 @@ def imread(path, is_grayscale = False):
         return scipy.misc.imread(path).astype(np.float)
 
 def merge_images(images, size):
-    return inverse_transform(images)
+    N = images.shape[0]
+    image_dim = images.shape[1:]
+    ret = np.zeros([size[0]*image_dim[0], size[1]*image_dim[1], image_dim[2]], dtype=images.dtype)
+    for i in xrange(0, size[0]):
+        for j in xrange(0, size[1]):
+            image_idx = i * size[0] + j
+            if image_idx >= N:
+                return ret
+            ret[i*image_dim[0]:(i+1)*image_dim[0], j*image_dim[1]:(j+1)*image_dim[1], :] = images[image_idx, :, :, :]
+    return ret
 
 def merge(images, size):
     h, w = images.shape[1], images.shape[2]

@@ -2,6 +2,8 @@ Dataset/*
 src/checkpoint/*
 src/logs/*
 src/samples/*
+src/JSTL/JSTL.npy
+src/JSTL/LookBookList.txt
 ### Python template
 # Byte-compiled / optimized / DLL files
 __pycache__/

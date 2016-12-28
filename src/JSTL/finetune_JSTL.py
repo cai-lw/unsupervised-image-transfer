@@ -3,28 +3,62 @@ import random
 import tensorflow as tf
 from JSTL import JSTL
 
-batch_size = 32
+BATCH_SIZE = 32
 CONTRASTIVE_MARGIN = 1.0
 
-def gen_data(source):
-    while True:
-        indices = range(len(source.images))
-        random.shuffle(indices)
-        for i in indices:
-            image = np.reshape(source.images[i], (28, 28, 1))
-            label = source.labels[i]
-            yield image, label
+def read_data(data_path, label_path):
+    labels = []
+    for line in open(label_path):
+        line = line.split(' ')
+        img_list.append(line[1])
+    data = np.load(data_path)
+    return data, labels
 
-def gen_data_batch(source):
-    data_gen = gen_data(source)
-    while True:
-        image_batch = []
-        label_batch = []
-        for _ in range(batch_size):
-            image, label = next(data_gen)
-            image_batch.append(image)
-            label_batch.append(label)
-        yield np.array(image_batch), np.array(label_batch)
+def get_batch_pair(data, labels, batch_size, is_target_set_train=True):
+    def get_genuine_or_not(data, labels, genuine=True):
+        total_labels = 8725
+        if genuine:
+            index = numpy.random.randint(total_labels)
+            # Getting the indexes of the data from a particular client
+            indexes = numpy.where(labels == index)[0]
+            numpy.random.shuffle(indexes)
+
+            # Picking a pair
+            one_left = input_data[indexes[0], :, :, :]
+            one_right = input_data[indexes[1], :, :, :]
+        else:
+            # Picking a pair from different clients
+            index = numpy.random.choice(total_labels, 2, replace=False)
+            # Getting the indexes of the two clients
+            index_left = numpy.where(labels == index[0])[0]
+            index_rigth = numpy.where(labels == index[1])[0]
+            numpy.random.shuffle(index_left)
+            numpy.random.shuffle(index_right)
+
+            # Picking a pair
+            data_left = data[index_left[0], :, :, :]
+            data_right = data[index_right[0], :, :, :]
+
+        return data_left, data_right
+
+    if is_target_set_train:
+            target_data = self.train_data
+            target_labels = self.train_labels
+        else:
+            target_data = self.validation_data
+            target_labels = self.validation_labels
+
+        batch_left = numpy.zeros(shape = (batch_size, 144, 56, 3), dtype='float32')
+        batch_right = numpy.zeros(shape = (batch_size, 144, 56, 3), dtype='float32')
+        batch_labels = numpy.zeros(shape = batch_size, dtype='float32')
+
+        genuine = True
+        for i in range(total_data):
+            data_left[i, :, :, :], data_right[i, :, :, :] = get_genuine_or_not(target_data, target_labels, genuine=genuine)
+            labels_siamese[i] = not genuine
+            genuine = not genuine
+
+        return data_left, data_right, labels
 
 
 def compute_euclidean_distance(x, y):
@@ -76,9 +110,9 @@ def compute_contrastive_loss(left_feature, right_feature, label, margin, is_targ
 
 if __name__ == 'main':
     # Siamease place holders - Training
-    train_left_data = tf.placeholder(tf.float32, shape=(batch_size, 144, 56, 3), name="left")
-    train_right_data = tf.placeholder(tf.float32, shape=(batch_size, 144, 56, 3), name="right")
-    labels_data = tf.placeholder(tf.int32, shape= batch_size * 2)
+    train_left_data = tf.placeholder(tf.float32, shape=(BATCH_SIZE, 144, 56, 3), name="left")
+    train_right_data = tf.placeholder(tf.float32, shape=(BATCH_SIZE, 144, 56, 3), name="right")
+    labels_data = tf.placeholder(tf.int32, shape= BATCH_SIZE * 2)
     net_left = JSTL({'data': train_left_data})
     net_right = JSTL({'data': train_right_data})
     feature_left = new_left.layers['fc7']
@@ -88,16 +122,19 @@ if __name__ == 'main':
     opt = tf.train.RMSPropOptimizer(0.001)
     train_op = opt.minimize(loss)
 
+    data, labels = read_data('../../Dataset/lookbook/data_144_56.npy', 'LookBookList.txt')
+
     with tf.Session() as sess:
         # Load the data
         sess.run(tf.initialize_all_variables())
         net.load('JSTL.npy', sess)
 
-        data_gen = gen_data_batch(mnist.train)
         for i in range(1000):
-            np_images, np_labels = next(data_gen)
-            feed = {images: np_images, labels: np_labels}
 
-            np_loss, np_pred, _ = sess.run([loss, pred, train_op], feed_dict=feed)
+            batch_left, batch_right, labels = data_shuffler.get_pair(data, labels, BATCH_SIZE)
+
+            np_loss, _ = sess.run([loss, train_op], feed_dict = {train_left_data: batch_left,
+                                                                train_right_data: batch_right,
+                                                                labels_data: labels)
             if i % 10 == 0:
                 print('Iteration: ', i, np_loss)

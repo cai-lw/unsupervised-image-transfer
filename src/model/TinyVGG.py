@@ -3,6 +3,7 @@ import os
 import time
 from glob import glob
 import tensorflow as tf
+from tensorflow.contrib.framework import get_variables
 import numpy as np
 from six.moves import xrange
 
@@ -82,9 +83,9 @@ class TinyVGG(object):
 
         self.all_sum = tf.merge_summary([self.feature_sum, self.loss_sum, self.accuracy_sum])
 
-        self.train_vars = tf.trainable_variables()
+        self.train_vars = get_variables(scope="net_"+self.dataset_name)
 
-        self.saver = tf.train.Saver()
+        self.saver = tf.train.Saver(var_list=self.train_vars)
 
     def train(self, config):
 

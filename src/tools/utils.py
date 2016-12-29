@@ -51,6 +51,7 @@ def load_mnist(path, part="all", shuffle=True):
         new_img = scipy.misc.imresize(old_img, (32, 32)).repeat(3).reshape((32, 32, 3))
         X[i, :, :, :] = new_img
 
+
     if shuffle:
         seed = 547
         np.random.seed(seed)
@@ -58,6 +59,7 @@ def load_mnist(path, part="all", shuffle=True):
         np.random.seed(seed)
         np.random.shuffle(y)
 
+    y = y.round().astype(np.int)
     y_vec = np.zeros((len(y), 10), dtype=np.float)
     for i, label in enumerate(y):
         y_vec[i,y[i]] = 1.0
@@ -81,6 +83,7 @@ def load_image_from_mat(path, shuffle=True):
         np.random.seed(seed)
         np.random.shuffle(y)
 
+    y = y.round().astype(np.int)
     y_vec = np.zeros((len(y), 10), dtype = np.float)
     for i, label in enumerate(y):
         y_vec[i, y[i]-1] = 1.0

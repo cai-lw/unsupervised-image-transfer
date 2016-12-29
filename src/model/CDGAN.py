@@ -5,7 +5,7 @@ from glob import glob
 import tensorflow as tf
 import numpy as np
 from six.moves import xrange
-from model.SVHN import SVHN
+from model.TinyVGG import TinyVGG
 
 from tools.ops import *
 from tools.utils import *
@@ -77,7 +77,8 @@ class CrossDomainGAN(object):
         self.tgt_images = tf.placeholder(tf.float32, [self.batch_size] + [self.image_size, self.image_size, self.c_dim],
                                     name = 'tgt_images')
 
-        self.f_model = SVHN(self.sess, image_size=self.image_size, batch_size=self.batch_size, c_dim=self.c_dim, checkpoint_dir=self.checkpoint_dir)
+        self.f_model = TinyVGG(self.sess, image_size=self.image_size, batch_size=self.batch_size, c_dim=self.c_dim,\
+            checkpoint_dir=self.checkpoint_dir, dataset_name="svhn")
         if self.f_model.load(self.checkpoint_dir):
             print(" [*] Load SUCCESS")
         else:
@@ -139,7 +140,6 @@ class CrossDomainGAN(object):
         self.saver = tf.train.Saver()
 
     def train(self, config):
-        """Train CrossDomainGAN"""
 
         src_data_X_train, src_data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'train_32x32.mat'))
         src_data_X_test, src_data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
@@ -157,6 +157,13 @@ class CrossDomainGAN(object):
 
         counter = 0
         start_time = time.time()
+
+        mnist_tester = TinyVGG(self.sess, image_size=self.image_size, batch_size=self.batch_size, c_dim=self.c_dim,\
+            checkpoint_dir=self.checkpoint_dir, dataset_name="mnist")
+        if mnist_tester.load(self.checkpoint_dir):
+            print(" [*] Load SUCCESS")
+        else:
+            print(" [!] Load failed...")
 
         if self.load(self.checkpoint_dir):
             print(" [*] Load SUCCESS")
@@ -202,18 +209,20 @@ class CrossDomainGAN(object):
                     test_batch_idxs = min(src_data_X_test.shape[0], tgt_data_X_test.shape[0]) // config.batch_size
                     test_d_loss = 0
                     test_g_loss = 0
+                    test_acc = 0
                     for idx in xrange(0, test_batch_idxs):
                         batch_src_test = src_data_X_test[idx * config.batch_size : (idx + 1) * config.batch_size]
+                        batch_src_test_y = src_data_y_test[idx * config.batch_size : (idx + 1) * config.batch_size]
                         batch_tgt_test = tgt_data_X_test[idx * config.batch_size : (idx + 1) * config.batch_size]
-                        d_loss, g_loss = self.sess.run(
-                            [self.D_loss, self.G_loss],
+                        samples, d_loss, g_loss = self.sess.run(
+                            [self.src_images_FG, self.D_loss, self.G_loss],
                             feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test}
                         )
+                        acc = mnist_tester.predict_accuracy(samples, batch_src_test_y)
                         test_d_loss += d_loss
                         test_g_loss += g_loss
+                        test_acc += acc
                         if idx * 5 % test_batch_idxs < 5:
-                            samples = self.sess.run(self.src_images_FG,
-                                feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test})
                             batch_mosaic_size = [int(np.ceil(np.sqrt(config.batch_size)))] * 2
                             save_images(batch_src_test, batch_mosaic_size,
                                 './{}/{}/{:04d}_{:04d}_src.png'.format(config.sample_dir, self.model_name, counter, idx))
@@ -221,7 +230,8 @@ class CrossDomainGAN(object):
                                 './{}/{}/{:04d}_{:04d}_gen.png'.format(config.sample_dir, self.model_name, counter, idx))
                     test_d_loss /= test_batch_idxs
                     test_g_loss /= test_batch_idxs
-                    print("[Sample] d_loss: %.8f, g_loss: %.8f" % (test_d_loss, test_g_loss))
+                    test_acc /= test_batch_idxs
+                    print("Test: [%2d] d_loss: %.8f, g_loss: %.8f acc: %.8f" % (counter, test_d_loss, test_g_loss, test_acc))
 
                 if np.mod(counter, 500) == 0:
                     self.save(config.checkpoint_dir, counter)

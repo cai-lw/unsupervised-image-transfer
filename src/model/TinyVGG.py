@@ -9,9 +9,9 @@ from six.moves import xrange
 from tools.ops import *
 from tools.utils import *
 
-class SVHN(object):
+class TinyVGG(object):
     def __init__(self, sess, image_size = 32, batch_size=64, c_dim=3, y_dim=10,
-                 checkpoint_dir = None):
+                 checkpoint_dir=None, dataset_name="svhn"):
         """
         Args:
             sess: TensorFlow session
@@ -27,11 +27,12 @@ class SVHN(object):
         self.y_dim = y_dim
         self.c_dim = c_dim
         self.checkpoint_dir = checkpoint_dir
-        self.model_name = "SVHN"
+        self.dataset_name = dataset_name
+        self.model_name = "VGG_" + dataset_name
         self.build_model()
 
     def net(self, images, reuse=None):
-        with tf.variable_scope("net", reuse=reuse):
+        with tf.variable_scope("net_"+self.dataset_name, reuse=reuse):
             # 32 * 32 * 3
             h0_conv = relu(conv2d(images, 16, k_h=3, k_w=3, d_h=1, d_w=1, name='h0_conv'))
             h1_conv = relu(conv2d(h0_conv, 16, k_h=3, k_w=3, d_h=1, d_w=1, name='h1_conv'))
@@ -53,12 +54,12 @@ class SVHN(object):
             h7_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
             #  2 * 2 * 128
-            h8_conv = relu(conv2d(h1_pool, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h8_conv'))
-            h9_conv = relu(conv2d(h2_conv, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h9_conv'))
-            h9_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
+            # h8_conv = relu(conv2d(h1_pool, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h8_conv'))
+            # h9_conv = relu(conv2d(h2_conv, 256, k_h=3, k_w=3, d_h=1, d_w=1, name='h9_conv'))
+            # h9_pool = maxpooling2d(h3_conv, k_h=2, k_w=2, step_h=2, step_w=2)
 
             # linear ops
-            h10_lin = linear(tf.reshape(h9_pool, [self.batch_size, -1]), 256, 'h10_lin')
+            h10_lin = linear(tf.reshape(h7_pool, [self.batch_size, -1]), 256, 'h10_lin')
             res = linear(h10_lin, 10, 'res')
 
             return res, h10_lin
@@ -86,17 +87,13 @@ class SVHN(object):
         self.saver = tf.train.Saver()
 
     def train(self, config):
-        """Train SVHN Model"""
 
-        # data_X_extra, data_y_extra = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
-        data_X_train, data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
-        data_X_test, data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
-        # data_X_train = np.concatenate((data_X_train, data_X_extra), axis=0)
-        # data_y_train = np.concatenate((data_y_train, data_y_extra), axis=0)
-        indices = np.arange(len(data_X_train))
-        np.random.shuffle(indices)
-        data_X_train = data_X_train[indices]
-        data_y_train = data_y_train[indices]
+        if self.dataset_name == "svhn":
+            data_X_train, data_y_train = load_image_from_mat(os.path.join(config.src_dir, 'extra_32x32.mat'))
+            data_X_test, data_y_test = load_image_from_mat(os.path.join(config.src_dir, 'test_32x32.mat'))
+        elif self.dataset_name == "mnist":
+            data_X_train, data_y_train = load_mnist(config.src_dir, part="train")
+            data_X_test, data_y_test = load_mnist(config.src_dir, part="test")
 
         optim = tf.train.AdamOptimizer(config.learning_rate, beta1 = config.beta1) \
                           .minimize(self.loss, var_list = self.train_vars)
@@ -152,11 +149,14 @@ class SVHN(object):
                         test_accuracy += batch_test_accuracy
                     test_loss = test_loss / test_batch_idxs
                     test_accuracy = test_accuracy / test_batch_idxs
-                    print("Count: [%2d] test_loss: %.8f, test_accuracy: %.8f" %(counter, test_loss, test_accuracy))
+                    print("Test: [%2d] test_loss: %.8f, test_accuracy: %.8f" % (counter, test_loss, test_accuracy))
                     self.save(config.checkpoint_dir, counter)
 
     def features(self, images):
         return self.net(images, reuse=True)[1]
+
+    def predict_accuracy(self, images, y_vec):
+        return self.sess.run(self.accuracy, feed_dict={self.images:images, self.y_vec:y_vec})
 
     def save(self, checkpoint_dir, step):
         checkpoint_dir = os.path.join(checkpoint_dir, self.model_name)
@@ -169,7 +169,7 @@ class SVHN(object):
                         global_step=step)
 
     def load(self, checkpoint_dir):
-        print(" [*] Reading SVHN checkpoints...")
+        print(" [*] Reading %s checkpoints..." % self.model_name)
 
         checkpoint_dir = os.path.join(checkpoint_dir, self.model_name)
 

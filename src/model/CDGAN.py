@@ -201,13 +201,13 @@ class CrossDomainGAN(object):
                         self.tgt_images : batch_tgt_images})
                 writer.add_summary(summary, counter)
 
-                D_error, G_error = self.sess.run([self.D_loss, self.G_loss],
-                    feed_dict = {self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
-
                 counter += 1
-                print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
-                    % (epoch, idx+1, batch_idxs,
-                        time.time() - start_time, D_error, G_error))
+                if np.mod(counter, 5) == 0:
+                    D_error, G_error = self.sess.run([self.D_loss, self.G_loss],
+                        feed_dict = {self.src_images: batch_src_images, self.tgt_images: batch_tgt_images})
+                    print("Epoch: [%2d] [%4d/%4d] time: %4.4f, d_loss: %.8f, g_loss: %.8f" \
+                        % (epoch, idx+1, batch_idxs,
+                            time.time() - start_time, D_error, G_error))
 
                 if np.mod(counter, 100) == 0:
                     test_batch_idxs = min(src_data_X_test.shape[0], tgt_data_X_test.shape[0]) // config.batch_size
@@ -223,10 +223,10 @@ class CrossDomainGAN(object):
                             feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test}
                         )
                         acc = mnist_tester.predict_accuracy(samples, batch_src_test_y)
+                        print(d_loss, g_loss, acc)
                         test_d_loss += d_loss
                         test_g_loss += g_loss
                         test_acc += acc
-
                         if np.mod(counter, 500) == 0 and idx * 5 % test_batch_idxs < 5:
                             batch_mosaic_size = [int(np.ceil(np.sqrt(config.batch_size)))] * 2
                             save_images(batch_src_test, batch_mosaic_size,
@@ -240,6 +240,8 @@ class CrossDomainGAN(object):
 
                 if np.mod(counter, 500) == 0:
                     self.save(config.checkpoint_dir, counter)
+
+        self.save(config.checkpoint_dir, counter)
 
     def discriminator(self, image, y=None, reuse=None):
         with tf.variable_scope("discriminator", reuse=reuse):

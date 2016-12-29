@@ -84,9 +84,10 @@ def load_image_from_mat(path, shuffle=True):
         np.random.shuffle(y)
 
     y = y.round().astype(np.int)
+    y[y == 10] = 0
     y_vec = np.zeros((len(y), 10), dtype = np.float)
     for i, label in enumerate(y):
-        y_vec[i, y[i]-1] = 1.0
+        y_vec[i, y[i]] = 1.0
 
     return X, y_vec
 

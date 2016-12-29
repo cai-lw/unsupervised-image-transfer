@@ -102,13 +102,13 @@ class TinyVGG(object):
 
         tf.initialize_all_variables().run()
 
-        counter = 0
-        start_time = time.time()
-
         if self.load(self.checkpoint_dir):
             print(" [*] Load SUCCESS")
         else:
             print(" [!] Load failed...")
+
+        counter = 0
+        start_time = time.time()
 
         for epoch in xrange(config.epoch):
 
@@ -152,6 +152,8 @@ class TinyVGG(object):
                     test_accuracy = test_accuracy / test_batch_idxs
                     print("Test: [%2d] test_loss: %.8f, test_accuracy: %.8f" % (counter, test_loss, test_accuracy))
                     self.save(config.checkpoint_dir, counter)
+
+        self.save(config.checkpoint_dir, counter)
 
     def features(self, images):
         return self.net(images, reuse=True)[1]

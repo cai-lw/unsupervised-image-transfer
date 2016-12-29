@@ -79,19 +79,17 @@ class CrossDomainGAN(object):
 
         self.f_model = TinyVGG(self.sess, image_size=self.image_size, batch_size=self.batch_size, c_dim=self.c_dim,\
             checkpoint_dir=self.checkpoint_dir, dataset_name="svhn")
-        if self.f_model.load(self.checkpoint_dir):
-            print(" [*] Load SUCCESS")
-        else:
-            print(" [!] Load failed...")
         self.f_function = self.f_model.features
 
         self.src_images_F = self.f_function(self.src_images)
+        self.src_F_sum = tf.histogram_summary('src_F',self.src_images_F)
         self.src_images_FG = self.generator(self.src_images_F)
         self.src_images_FGF = self.f_function(self.src_images_FG)
+        self.src_FGF_sum = tf.histogram_summary('src_FGF',self.src_images_FGF)
 
         self.tgt_images_F = self.f_function(self.tgt_images)
+        self.tgt_F_sum = tf.histogram_summary('tgt_F',self.tgt_images_F)
         self.tgt_images_FG = self.generator(self.tgt_images_F, reuse=True)
-        self.gen_images_sum = tf.image_summary('gen_images', self.tgt_images_FG)
 
         self.D_1, self.D_logits_1 = self.discriminator(self.src_images_FG)
         self.D_2, self.D_logits_2 = self.discriminator(self.tgt_images_FG, reuse=True)
@@ -130,7 +128,7 @@ class CrossDomainGAN(object):
         self.G_loss_sum = tf.scalar_summary('G_loss', self.G_loss)
 
         self.all_sum = tf.merge_summary([self.D_loss_sum, self.GANG_loss_sum, self.CONST_loss_sum,
-            self.TID_loss_sum, self.TV_loss_sum, self.G_loss_sum])
+            self.TID_loss_sum, self.TV_loss_sum, self.G_loss_sum, self.src_F_sum, self.src_FGF_sum, self.tgt_F_sum])
 
         t_vars = tf.trainable_variables()
 
@@ -154,6 +152,10 @@ class CrossDomainGAN(object):
         writer = tf.train.SummaryWriter(os.path.join(config.log_dir, self.model_name), self.sess.graph)
 
         tf.initialize_all_variables().run()
+	if self.f_model.load(self.checkpoint_dir):
+            print(" [*] Load SUCCESS")
+        else:
+            print(" [!] Load failed...")
 
         counter = 0
         start_time = time.time()
@@ -222,7 +224,10 @@ class CrossDomainGAN(object):
                         test_d_loss += d_loss
                         test_g_loss += g_loss
                         test_acc += acc
-                        if idx * 5 % test_batch_idxs < 5:
+                        
+                        if np.mod(counter, 500) == 0 and idx * 5 % test_batch_idxs < 5:
+                            samples = self.sess.run(self.src_images_FG,
+                                feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test})
                             batch_mosaic_size = [int(np.ceil(np.sqrt(config.batch_size)))] * 2
                             save_images(batch_src_test, batch_mosaic_size,
                                 './{}/{}/{:04d}_{:04d}_src.png'.format(config.sample_dir, self.model_name, counter, idx))

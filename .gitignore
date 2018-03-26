@@ -1,4 +1,8 @@
 Dataset/*
+report/*.aux
+report/*.out
+report/*.log
+report/*.synctex.gz
 src/checkpoint/*
 src/logs/*
 src/samples/*

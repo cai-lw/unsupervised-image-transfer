@@ -15,7 +15,7 @@ class CrossDomainGAN(object):
     def __init__(self, sess, image_size=108,
                  batch_size=64, sample_size = 64,
                  y_dim=None, z_dim=100, gf_dim=64, df_dim=64,
-                 CONST_weight=1, TID_weight=1, TV_weight=1,
+                 CONST_weight=15, TID_weight=15, TV_weight=1,
                  gfc_dim=1024, dfc_dim=1024, c_dim=3, dataset_name='default',
                  checkpoint_dir=None, sample_dir=None):
         """
@@ -223,7 +223,7 @@ class CrossDomainGAN(object):
                             feed_dict={self.src_images: batch_src_test, self.tgt_images: batch_tgt_test}
                         )
                         acc = mnist_tester.predict_accuracy(samples, batch_src_test_y)
-                        print(d_loss, g_loss, acc)
+
                         test_d_loss += d_loss
                         test_g_loss += g_loss
                         test_acc += acc
